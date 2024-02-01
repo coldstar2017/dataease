@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.dataease</groupId>
     <artifactId>dataease</artifactId>
-    <version>2.2.0</version>
+    <version>${dataease.version}</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -13,25 +13,24 @@
     </modules>
 
     <properties>
-        <dataease.version>2.2.0</dataease.version>
+        <dataease.version>2.3.0</dataease.version>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-cloud-alibaba.version>2022.0.0.0-RC1</spring-cloud-alibaba.version>
+        <spring-cloud-alibaba.version>2022.0.0.0</spring-cloud-alibaba.version>
         <spring-cloud.version>2022.0.0</spring-cloud.version>
-        <spring-boot.version>3.0.0</spring-boot.version>
+        <spring-boot.version>3.0.2</spring-boot.version>
         <maven-compiler-plugin.version>3.9.0</maven-compiler-plugin.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
         <h2.version>2.2.220</h2.version>
         <knife4j.version>4.4.0</knife4j.version>
-        <calcite-core.version>1.35.1</calcite-core.version>
+        <calcite-core.version>1.35.2</calcite-core.version>
         <commons-dbcp2.version>2.6.0</commons-dbcp2.version>
         <antlr.version>3.5.2</antlr.version>
         <java-jwt.version>3.12.1</java-jwt.version>
         <velocity.version>2.3</velocity.version>
         <maven.antrun.version>3.1.0</maven.antrun.version>
-        <hutool.version>5.8.16</hutool.version>
         <ehcache.version>3.10.8</ehcache.version>
         <bcprov.version>1.74</bcprov.version>
         <junit.version>4.13.2</junit.version>
@@ -40,6 +39,9 @@
         <easyexcel.version>3.3.2</easyexcel.version>
         <maven.surefire.version>3.1.2</maven.surefire.version>
         <maven.clean.version>3.2.0</maven.clean.version>
+        <flatten-maven.version>1.3.0</flatten-maven.version>
+        <maven.resources.version>3.3.1</maven.resources.version>
+        <maven.exec.version>3.1.0</maven.exec.version>
     </properties>
 
     <dependencyManagement>
@@ -113,16 +115,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
-        <dependency>
-            <groupId>cn.hutool</groupId>
-            <artifactId>hutool-core</artifactId>
-            <version>${hutool.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>cn.hutool</groupId>
-            <artifactId>hutool-crypto</artifactId>
-            <version>${hutool.version}</version>
-        </dependency>
 
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -164,10 +156,46 @@
                     <artifactId>maven-clean-plugin</artifactId>
                     <version>${maven.clean.version}</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>${maven.resources.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${maven.exec.version}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten-maven.version}</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten-clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
-
 
 
 </project>

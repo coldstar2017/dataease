@@ -74,7 +74,7 @@ public class DataVisualizationVO implements Serializable {
     /**
      * 是否单独打开水印 0-关闭 1-开启
      */
-    private Integer selfWatermarkStatus;
+    private Boolean selfWatermarkStatus;
 
     /**
      * 排序
@@ -128,6 +128,11 @@ public class DataVisualizationVO implements Serializable {
      * 视图模板数据
      */
     private Map<Long, VisualizationTemplateExtendDataDTO> extendDataInfo = new HashMap<>();
+
+    /**
+     * 水印信息
+     */
+    private VisualizationWatermarkVO watermarkInfo;
 
     public DataVisualizationVO(Long id, String name, String type, String canvasStyleData, String componentData, Map<Long, ChartViewDTO> canvasViewInfo, Map<Long, VisualizationTemplateExtendDataDTO> extendDataInfo) {
         this.id = id;

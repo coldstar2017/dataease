@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useI18n } from '@/hooks/web/useI18n'
 import ChartComponentG2Plot from './components/ChartComponentG2Plot.vue'
+import DeIndicator from '@/custom-component/indicator/DeIndicator.vue'
 import {
   computed,
   CSSProperties,
@@ -568,11 +569,25 @@ function onTitleChange() {
 const toolTip = computed(() => {
   return props.themes === 'dark' ? 'ndark' : 'dark'
 })
+
+const marginBottom = computed<string | 0>(() => {
+  if (titleShow.value || trackMenu.value.length > 0 || state.title_remark.show) {
+    return 8 * scale.value + 'px'
+  }
+  return 0
+})
+
+const iconSize = computed<string>(() => {
+  return 16 * scale.value + 'px'
+})
 </script>
 
 <template>
   <div class="chart-area" v-loading="loadingFlag">
-    <div class="title-container" :style="{ 'justify-content': titleAlign }">
+    <div
+      class="title-container"
+      :style="{ 'justify-content': titleAlign, 'margin-bottom': marginBottom }"
+    >
       <template v-if="!titleEditStatus">
         <p v-if="titleShow" :style="state.title_class" @dblclick="changeEditTitle">
           {{ view.title }}
@@ -592,29 +607,29 @@ const toolTip = computed(() => {
       </template>
       <div
         class="icons-container"
-        :class="{ 'is-editing': titleEditStatus }"
+        :class="{ 'is-editing': titleEditStatus, 'icons-container__dark': themes === 'dark' }"
         v-if="trackMenu.length > 0 || state.title_remark.show"
       >
         <el-tooltip :effect="toolTip" placement="top" v-if="state.title_remark.show">
           <template #content>
             <div style="white-space: pre-wrap" v-html="state.title_remark.remark"></div>
           </template>
-          <el-icon size="16px" class="inner-icon">
+          <el-icon :size="iconSize" class="inner-icon">
             <Icon name="icon_info_outlined" />
           </el-icon>
         </el-tooltip>
         <el-tooltip :effect="toolTip" placement="top" content="已设置联动" v-if="hasLinkIcon">
-          <el-icon size="16px" class="inner-icon">
+          <el-icon :size="iconSize" class="inner-icon">
             <Icon name="icon_link-record_outlined" />
           </el-icon>
         </el-tooltip>
         <el-tooltip :effect="toolTip" placement="top" content="已设置跳转" v-if="hasJumpIcon">
-          <el-icon size="16px" class="inner-icon">
+          <el-icon :size="iconSize" class="inner-icon">
             <Icon name="icon_viewinchat_outlined" />
           </el-icon>
         </el-tooltip>
         <el-tooltip :effect="toolTip" placement="top" content="已设置下钻" v-if="hasDrillIcon">
-          <el-icon size="16px" class="inner-icon">
+          <el-icon :size="iconSize" class="inner-icon">
             <Icon name="icon_drilling_outlined" />
           </el-icon>
         </el-tooltip>
@@ -629,6 +644,14 @@ const toolTip = computed(() => {
         :element="element"
         :disabled="!['canvas', 'canvasDataV'].includes(showPosition) || disabled"
         :active="active"
+        :show-position="showPosition"
+      />
+      <de-indicator
+        :scale="scale"
+        v-else-if="showChartView(ChartLibraryType.INDICATOR)"
+        :themes="canvasStyleData.dashboard.themeColor"
+        ref="chartComponent"
+        :view="view"
         :show-position="showPosition"
       />
       <chart-component-g2-plot
@@ -688,6 +711,10 @@ const toolTip = computed(() => {
     gap: 8px;
 
     color: #646a73;
+
+    &.icons-container__dark {
+      color: #a6a6a6;
+    }
 
     &.is-editing {
       gap: 6px;

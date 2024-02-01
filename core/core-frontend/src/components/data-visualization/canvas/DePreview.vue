@@ -2,7 +2,7 @@
 import { getCanvasStyle, getShapeItemStyle } from '@/utils/style'
 import ComponentWrapper from './ComponentWrapper.vue'
 import { changeStyleWithScale } from '@/utils/translate'
-import { computed, nextTick, onMounted, ref, toRefs, watch, onBeforeUnmount } from 'vue'
+import { computed, nextTick, ref, toRefs, watch, onBeforeUnmount, onMounted } from 'vue'
 import { changeRefComponentsSizeWithScale } from '@/utils/changeComponentsSizeWithScale'
 import { dvMainStoreWithOut } from '@/store/modules/data-visualization/dvMain'
 import { storeToRefs } from 'pinia'
@@ -10,6 +10,8 @@ import elementResizeDetectorMaker from 'element-resize-detector'
 import UserViewEnlarge from '@/components/visualization/UserViewEnlarge.vue'
 import CanvasOptBar from '@/components/visualization/CanvasOptBar.vue'
 import { isMainCanvas } from '@/utils/canvasUtils'
+import { activeWatermark } from '@/components/watermark/watermark'
+import { personInfoApi } from '@/api/user'
 const dvMainStore = dvMainStoreWithOut()
 const { pcMatrixCount, curComponent } = storeToRefs(dvMainStore)
 
@@ -47,6 +49,15 @@ const props = defineProps({
   downloadStatus: {
     type: Boolean,
     default: false
+  },
+  userId: {
+    type: String,
+    require: false
+  },
+  outerScale: {
+    type: Number,
+    required: false,
+    default: 1
   }
 })
 
@@ -58,7 +69,9 @@ const {
   canvasViewInfo,
   showPosition,
   previewActive,
-  downloadStatus
+  downloadStatus,
+  outerScale,
+  userId
 } = toRefs(props)
 const domId = 'preview-' + canvasId.value
 const scaleWidth = ref(100)
@@ -68,6 +81,7 @@ const cellHeight = ref(10)
 const userViewEnlargeRef = ref(null)
 const searchCount = ref(0)
 const refreshTimer = ref(null)
+const userInfo = ref(null)
 
 const dashboardActive = computed(() => {
   return dvInfo.value.type === 'dashboard'
@@ -126,6 +140,9 @@ const restore = () => {
       if (dashboardActive.value) {
         cellWidth.value = canvasWidth / pcMatrixCount.value.x
         cellHeight.value = canvasHeight / pcMatrixCount.value.y
+        scaleWidth.value = isMainCanvas(canvasId.value)
+          ? scaleWidth.value * 1.2
+          : outerScale.value * 100
       } else {
         changeRefComponentsSizeWithScale(
           componentData.value,
@@ -171,6 +188,34 @@ const initRefreshTimer = () => {
   }
 }
 
+const initWatermark = (waterDomId = 'preview-canvas-main') => {
+  if (dvInfo.value.watermarkInfo && isMainCanvas(canvasId.value)) {
+    if (userInfo.value) {
+      activeWatermark(
+        dvInfo.value.watermarkInfo.settingContent,
+        userInfo.value,
+        waterDomId,
+        canvasId.value,
+        dvInfo.value.selfWatermarkStatus,
+        scaleWidth.value / 100
+      )
+    } else {
+      const method = personInfoApi
+      method().then(res => {
+        userInfo.value = res.data
+        activeWatermark(
+          dvInfo.value.watermarkInfo.settingContent,
+          userInfo.value,
+          waterDomId,
+          canvasId.value,
+          dvInfo.value.selfWatermarkStatus,
+          scaleWidth.value / 100
+        )
+      })
+    }
+  }
+}
+
 onMounted(() => {
   initRefreshTimer()
   restore()
@@ -178,6 +223,7 @@ onMounted(() => {
   const erd = elementResizeDetectorMaker()
   erd.listenTo(document.getElementById(domId), () => {
     restore()
+    initWatermark()
   })
 })
 

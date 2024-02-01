@@ -17,11 +17,14 @@ import DatasetDetail from '@/views/visualized/data/dataset/DatasetDetail.vue'
 import { timestampFormatDate } from '@/views/visualized/data/dataset/form/util'
 import EmptyBackground from '@/components/empty-background/src/EmptyBackground.vue'
 import dayjs from 'dayjs'
+import { useAppStoreWithOut } from '@/store/modules/app'
 import {
   getTableField,
   listDatasourceTables,
   deleteById,
-  save,
+  move,
+  reName,
+  createFolder,
   validateById,
   syncApiDs,
   syncApiTable
@@ -67,6 +70,7 @@ export interface Node {
 
 const { t } = useI18n()
 const router = useRouter()
+const appStore = useAppStoreWithOut()
 const state = reactive({
   datasourceTree: [] as BusiTreeNode[],
   dsTableData: [],
@@ -85,6 +89,7 @@ const recordState = reactive({
     total: 0
   }
 })
+const isDataEaseBi = computed(() => appStore.getIsDataEaseBi)
 
 const createDataset = (tableName?: string) => {
   router.push({
@@ -134,19 +139,26 @@ const typeMap = dsTypes.reduce((pre, next) => {
   return pre
 }, {})
 
-const datasetTypeList = [
-  {
-    label: '新建数据源',
-    svgName: 'icon_dataset',
-    command: 'datasource'
-  },
-  {
-    label: '新建文件夹',
-    divided: true,
-    svgName: 'dv-folder',
-    command: 'folder'
+const datasetTypeList = computed(() => {
+  const list = [
+    {
+      label: '新建数据源',
+      svgName: 'icon_dataset',
+      command: 'datasource'
+    },
+    {
+      label: '新建文件夹',
+      divided: true,
+      svgName: 'dv-folder',
+      command: 'folder'
+    }
+  ]
+  if (isDataEaseBi.value) {
+    list.shift()
+    list[0].divided = false
   }
-]
+  return list
+})
 
 const dsTableDataLoading = ref(false)
 const selectDataset = row => {
@@ -224,28 +236,29 @@ const handleLoadExcel = data => {
 }
 
 const validateDS = () => {
-  validateById(nodeInfo.id as number)
-    .then(res => {
-      if (res.data.type === 'API') {
-        let error = 0
-        const status = JSON.parse(res.data.status)
-        for (let i = 0; i < status.length; i++) {
-          if (status[i].status === 'Error') {
-            error++
+  validateById(nodeInfo.id as number).then(res => {
+    if (res.data.type === 'API') {
+      let error = 0
+      const status = JSON.parse(res.data.status)
+      for (let i = 0; i < status.length; i++) {
+        if (status[i].status === 'Error') {
+          error++
+        }
+        for (let i = 0; i < nodeInfo.apiConfiguration.length; i++) {
+          if (nodeInfo.apiConfiguration[i].name === status[i].name) {
+            nodeInfo.apiConfiguration[i].status = status[i].status
           }
         }
-        if (error === 0) {
-          ElMessage.success('校验成功')
-        } else {
-          ElMessage.error('校验失败')
-        }
-      } else {
-        ElMessage.success('校验成功')
       }
-    })
-    .catch(() => {
-      ElMessage.error('校验失败')
-    })
+      if (error === 0) {
+        ElMessage.success('校验成功')
+      } else {
+        ElMessage.error('校验失败')
+      }
+    } else {
+      ElMessage.success('校验成功')
+    }
+  })
 }
 
 const dialogErrorInfo = ref(false)
@@ -341,21 +354,29 @@ const infoList = computed(() => {
   }
 })
 const saveDsFolder = (params, successCb, finallyCb, cmd) => {
-  save(params)
+  let method = move
+  let message = '移动成功'
+
+  switch (cmd) {
+    case 'move':
+      method = move
+      message = '移动成功'
+
+      break
+    case 'rename':
+      method = reName
+      message = '重命名成功'
+      break
+    default:
+      method = createFolder
+      message = '新建成功'
+      break
+  }
+  method(params)
     .then(res => {
       if (res !== undefined) {
         successCb()
-        switch (cmd) {
-          case 'move':
-            ElMessage.success('移动成功')
-            break
-          case 'rename':
-            ElMessage.success('重命名成功')
-            break
-          default:
-            ElMessage.success('新建成功')
-            break
-        }
+        ElMessage.success(message)
         listDs()
       }
     })
@@ -525,7 +546,7 @@ const nodeCollapse = data => {
 
 const filterNode = (value: string, data: BusiTreeNode) => {
   if (!value) return true
-  return data.name?.toLocaleLowerCase().includes(value.toLocaleLowerCase())
+  return data.name?.includes(value)
 }
 
 const editDatasource = (editType?: number) => {
@@ -628,16 +649,26 @@ const onChange = file => {
   fileList = file
 }
 
+const replaceLoading = ref(false)
+const addLoading = ref(false)
+
 const uploadExcel = editType => {
   const formData = new FormData()
   formData.append('file', fileList.raw)
   formData.append('type', '')
   formData.append('editType', editType)
   formData.append('id', (nodeInfo.id || 0) as string)
-  return uploadFile(formData).then(res => {
-    nodeInfo.editType = editType
-    datasourceEditor.value.init(nodeInfo, nodeInfo.id, res)
-  })
+  replaceLoading.value = editType === 0
+  addLoading.value = editType === 1
+  return uploadFile(formData)
+    .then(res => {
+      nodeInfo.editType = editType
+      datasourceEditor.value.init(nodeInfo, nodeInfo.id, res)
+    })
+    .finally(() => {
+      replaceLoading.value = false
+      addLoading.value = false
+    })
 }
 const activeName = ref('table')
 const defaultProps = {
@@ -652,7 +683,7 @@ onMounted(() => {
 })
 
 const getMenuList = (val: boolean) => {
-  return !val
+  return !val || isDataEaseBi.value
     ? menuList
     : [
         {
@@ -675,13 +706,18 @@ const getMenuList = (val: boolean) => {
               <el-tooltip effect="dark" content="新建文件夹" placement="top">
                 <el-icon
                   class="custom-icon btn"
-                  style="margin-right: 20px"
+                  :style="{ marginRight: isDataEaseBi ? 0 : '20px' }"
                   @click="handleDatasourceTree('folder')"
                 >
                   <Icon name="dv-new-folder" />
                 </el-icon>
               </el-tooltip>
-              <el-tooltip effect="dark" :content="t('datasource.create')" placement="top">
+              <el-tooltip
+                v-if="!isDataEaseBi"
+                effect="dark"
+                :content="t('datasource.create')"
+                placement="top"
+              >
                 <el-icon class="custom-icon btn" @click="createDatasource">
                   <Icon name="icon_file-add_outlined" />
                 </el-icon>
@@ -739,7 +775,7 @@ const getMenuList = (val: boolean) => {
                   <el-icon
                     class="hover-icon"
                     @click.stop="handleEdit(data)"
-                    v-else-if="data.type !== 'Excel'"
+                    v-else-if="data.type !== 'Excel' && !isDataEaseBi"
                   >
                     <icon name="icon_edit_outlined"></icon>
                   </el-icon>
@@ -757,10 +793,14 @@ const getMenuList = (val: boolean) => {
       </div>
     </el-aside>
 
-    <div class="datasource-content">
+    <div class="datasource-content" :class="isDataEaseBi && 'h100'">
       <template v-if="!state.datasourceTree.length">
         <empty-background description="暂无数据源" img-type="none">
-          <el-button v-if="rootManage" @click="() => createDatasource()" type="primary">
+          <el-button
+            v-if="rootManage && !isDataEaseBi"
+            @click="() => createDatasource()"
+            type="primary"
+          >
             <template #icon>
               <Icon name="icon_add_outlined"></Icon>
             </template>
@@ -792,7 +832,7 @@ const getMenuList = (val: boolean) => {
                 :creator="infoList.creator"
               ></dataset-detail>
             </el-popover>
-            <div class="right-btn flex-align-center">
+            <div class="right-btn flex-align-center" v-if="!isDataEaseBi">
               <el-button secondary @click="createDataset(null)" v-permission="['dataset']">
                 <template #icon>
                   <Icon name="icon_dataset_outlined"></Icon>
@@ -820,7 +860,7 @@ const getMenuList = (val: boolean) => {
                   name="file"
                 >
                   <template #trigger>
-                    <el-button class="replace-excel" type="primary">
+                    <el-button v-loading="replaceLoading" class="replace-excel" type="primary">
                       <template #icon>
                         <Icon name="icon_edit_outlined"></Icon>
                       </template>
@@ -841,7 +881,7 @@ const getMenuList = (val: boolean) => {
                   name="file"
                 >
                   <template #trigger>
-                    <el-button type="primary">
+                    <el-button v-loading="addLoading" type="primary">
                       <template #icon>
                         <Icon name="icon_new-item_outlined"></Icon>
                       </template>
@@ -938,7 +978,12 @@ const getMenuList = (val: boolean) => {
                 width="108"
               >
                 <template #default="scope">
-                  <el-tooltip effect="dark" content="新建数据集" placement="top">
+                  <el-tooltip
+                    v-if="!isDataEaseBi"
+                    effect="dark"
+                    content="新建数据集"
+                    placement="top"
+                  >
                     <el-button
                       @click.stop="createDataset(scope.row.name)"
                       text
@@ -1541,6 +1586,11 @@ const getMenuList = (val: boolean) => {
     height: calc(100vh - 56px);
     overflow: auto;
     position: relative;
+    &.h100 {
+      .datasource-table {
+        height: calc(100% - 140px);
+      }
+    }
   }
 
   .datasource-list {

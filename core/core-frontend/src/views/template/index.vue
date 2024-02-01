@@ -47,7 +47,7 @@
                   }})</span
                 >
                 <span v-show="state.templateFilterText">
-                  <span style="color: #3370ff">{{ state.currentTemplateLabel }}&nbsp;&nbsp;</span>
+                  <span style="color: #3370ff">{{ state.templateFilterText }}&nbsp;&nbsp;</span>
                   <span>的搜索结果&nbsp;{{ currentTemplateShowListComputed.length }}&nbsp;个</span>
                 </span>
               </div>
@@ -468,6 +468,14 @@ const categoryClick = params => {
 }
 
 const saveTemplateEdit = templateEditForm => {
+  if (templateEditForm.name === '最近使用') {
+    ElMessage({
+      message: '不合法命名，请更换！',
+      type: 'error',
+      showClose: true
+    })
+    return
+  }
   templateEditFormRef.value.validate(valid => {
     if (valid) {
       save({ ...templateEditForm }).then(response => {

@@ -15,7 +15,8 @@ const options = [
 const state = reactive({
   form: reactive({
     dsIntervalTime: '30',
-    dsExecuteTime: 'minute'
+    dsExecuteTime: 'minute',
+    frontTimeOut: '30'
   }),
   settingList: []
 })
@@ -92,7 +93,7 @@ const reset = () => {
 }
 
 const showLoading = () => {
-  loadingInstance.value = ElLoading.service({ target: '.basic-info-drawer' })
+  loadingInstance.value = ElLoading.service({ target: '.basic-param-drawer' })
 }
 const closeLoading = () => {
   loadingInstance.value?.close()
@@ -101,6 +102,15 @@ const closeLoading = () => {
 const edit = list => {
   state.settingList = list.map(item => {
     const pkey = item.pkey
+    if (pkey === 'basic.logLiveTime') {
+      rule[pkey.split('.')[1]] = [
+        {
+          required: true,
+          message: t('common.require'),
+          trigger: ['blur', 'change']
+        }
+      ]
+    }
     item['label'] = `setting_${pkey}`
     item['pkey'] = pkey.split('.')[1]
     let pval = item.pval
@@ -118,7 +128,7 @@ defineExpose({
   <el-drawer
     title="基础设置"
     v-model="dialogVisible"
-    custom-class="basic-info-drawer"
+    custom-class="basic-param-drawer"
     size="600px"
     direction="rtl"
   >
@@ -165,7 +175,32 @@ defineExpose({
           </el-select>
           <span class="ds-span">执行一次</span>
         </div>
-        <div v-else />
+        <div v-else-if="item.pkey === 'frontTimeOut'">
+          <el-input-number
+            v-model="state.form.frontTimeOut"
+            autocomplete="off"
+            step-strictly
+            class="text-left edit-all-line"
+            :min="1"
+            :placeholder="t('common.inputText')"
+            controls-position="right"
+            type="number"
+          />
+        </div>
+        <div v-else-if="item.pkey === 'logLiveTime'">
+          <el-input-number
+            v-model="state.form[item.pkey]"
+            autocomplete="off"
+            step-strictly
+            class="text-left edit-all-line"
+            :min="1"
+            :max="4000"
+            :placeholder="t('common.inputText')"
+            controls-position="right"
+            type="number"
+          />
+        </div>
+        <v-else />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -178,8 +213,34 @@ defineExpose({
     </template>
   </el-drawer>
 </template>
-
+<style lang="less">
+.basic-param-drawer {
+  .ed-drawer__footer {
+    height: 64px !important;
+    padding: 16px 24px !important;
+    .dialog-footer {
+      height: 32px;
+      line-height: 32px;
+    }
+  }
+  .ed-form-item__label {
+    line-height: 22px !important;
+    height: 22px !important;
+  }
+}
+</style>
 <style scoped lang="less">
+.basic-param-drawer {
+  .ed-form-item {
+    margin-bottom: 16px;
+  }
+  .is-error {
+    margin-bottom: 40px !important;
+  }
+  .edit-all-line {
+    width: 552px !important;
+  }
+}
 .setting-hidden-item {
   display: none !important;
 }

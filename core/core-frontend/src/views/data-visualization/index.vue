@@ -25,12 +25,15 @@ import { useEmitt } from '@/hooks/web/useEmitt'
 import { check, compareStorage } from '@/utils/CrossPermission'
 import { useCache } from '@/hooks/web/useCache'
 import RealTimeListTree from '@/components/data-visualization/RealTimeListTree.vue'
+import { interactiveStoreWithOut } from '@/store/modules/interactive'
+import { watermarkFind } from '@/api/watermark'
+const interactiveStore = interactiveStoreWithOut()
 const { wsCache } = useCache()
 const eventCheck = e => {
   if (e.key === 'screen-weight' && !compareStorage(e.oldValue, e.newValue)) {
     const { dvId, opt } = window.DataEaseBi || router.currentRoute.value.query
     if (!(opt && opt === 'create')) {
-      check(wsCache.get('screen-weight'), dvId)
+      check(wsCache.get('screen-weight'), dvId, 4)
     }
   }
 }
@@ -180,17 +183,29 @@ watch(
     }
   }
 )
-
-onMounted(() => {
+const checkPer = async resourceId => {
+  if (!window.DataEaseBi || !resourceId) {
+    return true
+  }
+  const request = { busiFlag: 'dataV' }
+  await interactiveStore.setInteractive(request)
+  return check(wsCache.get('screen-weight'), resourceId, 4)
+}
+onMounted(async () => {
   window.addEventListener('blur', releaseAttachKey)
   if (editMode.value === 'edit') {
     window.addEventListener('storage', eventCheck)
   }
-  initDataset()
   const { dvId, opt, pid, createType } = window.DataEaseBi || router.currentRoute.value.query
+  const checkResult = await checkPer(dvId)
+  if (!checkResult) {
+    return
+  }
+  initDataset()
   if (dvId) {
     state.canvasInitStatus = false
-    initCanvasData(dvId, 'dataV', function () {
+    const busiFlg = opt === 'copy' ? 'dataV-copy' : 'dataV'
+    initCanvasData(dvId, busiFlg, function () {
       state.canvasInitStatus = true
       // afterInit
       nextTick(() => {
@@ -208,7 +223,17 @@ onMounted(() => {
     })
   } else if (opt && opt === 'create') {
     state.canvasInitStatus = false
-    dvMainStore.createInit('dataV', null, pid)
+    let watermarkBaseInfo
+    try {
+      await watermarkFind().then(rsp => {
+        watermarkBaseInfo = rsp.data
+        watermarkBaseInfo.settingContent = JSON.parse(watermarkBaseInfo.settingContent)
+      })
+    } catch (e) {
+      console.error('can not find watermark info')
+    }
+
+    dvMainStore.createInit('dataV', null, pid, watermarkBaseInfo)
     nextTick(() => {
       state.canvasInitStatus = true
       dvMainStore.setDataPrepareState(true)

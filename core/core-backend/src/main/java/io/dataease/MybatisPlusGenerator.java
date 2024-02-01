@@ -25,7 +25,7 @@ public class MybatisPlusGenerator {
     /**
      * 这是要生成代码的表名称
      */
-    private static final String TABLE_NAME = "visualization_template_category_map";
+    private static final String TABLE_NAME = "visualization_template";
 
     /**
      * 下面两个配置基本上不用动

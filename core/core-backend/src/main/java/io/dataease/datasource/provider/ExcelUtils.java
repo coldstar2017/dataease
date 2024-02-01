@@ -267,9 +267,6 @@ public class ExcelUtils {
             int num = 1;
             String line;
             while ((line = reader.readLine()) != null) {
-                if (isPreview && num > 1000) {
-                    break;
-                }
                 String str;
                 line += ",";
                 Pattern pCells = Pattern.compile("(\"[^\"]*(\"{2})*[^\"]*\")*[^,]*,");
@@ -297,25 +294,19 @@ public class ExcelUtils {
     }
 
     private String cellType(String value) {
+        if(value.length()> 19){
+            return "TEXT";
+        }
         try {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            sdf.parse(value);
-            return "DATETIME";
-        } catch (Exception e1) {
-            if(value.length()> 19){
-                return "TEXT";
+            Double d = Double.valueOf(value);
+            double eps = 1e-10;
+            if (d - Math.floor(d) < eps) {
+                return "LONG";
+            } else {
+                return "DOUBLE";
             }
-            try {
-                Double d = Double.valueOf(value);
-                double eps = 1e-10;
-                if (d - Math.floor(d) < eps) {
-                    return "LONG";
-                } else {
-                    return "DOUBLE";
-                }
-            } catch (Exception e2) {
-                return "TEXT";
-            }
+        } catch (Exception e2) {
+            return "TEXT";
         }
     }
 

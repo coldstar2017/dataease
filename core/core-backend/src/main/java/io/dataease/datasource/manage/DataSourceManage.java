@@ -1,6 +1,5 @@
 package io.dataease.datasource.manage;
 
-import cn.hutool.core.collection.CollectionUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import io.dataease.api.ds.vo.DatasourceDTO;
@@ -19,13 +18,13 @@ import io.dataease.operation.manage.CoreOptRecentManage;
 import io.dataease.utils.AuthUtils;
 import io.dataease.utils.TreeUtils;
 import jakarta.annotation.Resource;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class DataSourceManage {
@@ -65,17 +64,19 @@ public class DataSourceManage {
         List<DatasourceNodeBO> nodes = new ArrayList<>();
         List<DataSourceNodePO> pos = dataSourceExtMapper.selectList(queryWrapper);
         if (ObjectUtils.isEmpty(request.getLeaf()) || !request.getLeaf()) nodes.add(rootNode());
-        if (CollectionUtil.isNotEmpty(pos)) {
+        if (CollectionUtils.isNotEmpty(pos)) {
             nodes.addAll(pos.stream().map(this::convert).toList());
         }
         return TreeUtils.mergeTree(nodes, BusiNodeVO.class, false);
     }
 
+
     @XpackInteract(value = "datasourceResourceTree", before = false)
     public void innerSave(CoreDatasource coreDatasource) {
         coreDatasourceMapper.insert(coreDatasource);
-        coreOptRecentManage.saveOpt(coreDatasource.getId(), OptConstants.OPT_RESOURCE_TYPE.DATASOURCE,OptConstants.OPT_TYPE.NEW);
+        coreOptRecentManage.saveOpt(coreDatasource.getId(), OptConstants.OPT_RESOURCE_TYPE.DATASOURCE, OptConstants.OPT_TYPE.NEW);
     }
+
 
     @XpackInteract(value = "datasourceResourceTree", before = false)
     public void innerEdit(CoreDatasource coreDatasource) {
@@ -84,8 +85,9 @@ public class DataSourceManage {
         coreDatasource.setUpdateTime(System.currentTimeMillis());
         coreDatasource.setUpdateBy(AuthUtils.getUser().getUserId());
         coreDatasourceMapper.update(coreDatasource, updateWrapper);
-        coreOptRecentManage.saveOpt(coreDatasource.getId(), OptConstants.OPT_RESOURCE_TYPE.DATASOURCE,OptConstants.OPT_TYPE.UPDATE);
+        coreOptRecentManage.saveOpt(coreDatasource.getId(), OptConstants.OPT_RESOURCE_TYPE.DATASOURCE, OptConstants.OPT_TYPE.UPDATE);
     }
+
 
     @XpackInteract(value = "datasourceResourceTree", before = false)
     public void innerEditStatus(CoreDatasource coreDatasource) {
@@ -93,6 +95,7 @@ public class DataSourceManage {
         updateWrapper.eq("id", coreDatasource.getId());
         coreDatasourceMapper.update(coreDatasource, updateWrapper);
     }
+
 
     @XpackInteract(value = "datasourceResourceTree", before = false)
     public void move(DatasourceDTO dataSourceDTO) {
@@ -106,6 +109,6 @@ public class DataSourceManage {
         sourceData.setPid(dataSourceDTO.getPid());
         sourceData.setName(dataSourceDTO.getName());
         coreDatasourceMapper.updateById(sourceData);
-        coreOptRecentManage.saveOpt(sourceData.getId(), OptConstants.OPT_RESOURCE_TYPE.DATASOURCE,OptConstants.OPT_TYPE.UPDATE);
+        coreOptRecentManage.saveOpt(sourceData.getId(), OptConstants.OPT_RESOURCE_TYPE.DATASOURCE, OptConstants.OPT_TYPE.UPDATE);
     }
 }

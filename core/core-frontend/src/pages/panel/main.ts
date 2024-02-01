@@ -50,6 +50,7 @@ document.querySelector('head').appendChild = <T extends Node>(node: T) => {
   return newNode
 }
 import { App, createApp } from 'vue'
+import '../../assets/font/index.css'
 import '@/style/index.less'
 import '@/plugins/svg-icon'
 import 'normalize.css/normalize.css'
@@ -88,7 +89,13 @@ const defaultOptions = {
 class DataEaseBi {
   baseUrl: string
   token: string
-  type: 'DashboardEditor' | 'VisualizationEditor' | 'ViewWrapper' | 'Dashboard'
+  type:
+    | 'DashboardEditor'
+    | 'VisualizationEditor'
+    | 'ViewWrapper'
+    | 'Dashboard'
+    | 'ScreenPanel'
+    | 'DashboardPanel'
   dvId: string
   busiFlag: 'dashboard' | 'dataV'
   resourceId: string

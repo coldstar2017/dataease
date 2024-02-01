@@ -2,5 +2,7 @@
 ser = "ser"
 Referer = "Referer"
 Encryp = "Encryp"
+OT = "OT"
+Wheres = "Wheres"
 [files]
 extend-exclude = ["mapFiles/**"]

@@ -16,12 +16,15 @@ import DeCanvas from '@/views/canvas/DeCanvas.vue'
 import { check, compareStorage } from '@/utils/CrossPermission'
 import { useCache } from '@/hooks/web/useCache'
 import { snapshotStoreWithOut } from '@/store/modules/data-visualization/snapshot'
+import { interactiveStoreWithOut } from '@/store/modules/interactive'
+import { watermarkFind } from '@/api/watermark'
+const interactiveStore = interactiveStoreWithOut()
 const { wsCache } = useCache()
 const eventCheck = e => {
   if (e.key === 'panel-weight' && !compareStorage(e.oldValue, e.newValue)) {
     const { resourceId, opt } = window.DataEaseBi || router.currentRoute.value.query
     if (!(opt && opt === 'create')) {
-      check(wsCache.get('panel-weight'), resourceId)
+      check(wsCache.get('panel-weight'), resourceId, 4)
     }
   }
 }
@@ -58,16 +61,28 @@ const viewEditorShow = computed(() => {
       !batchOptStatus.value
   )
 })
-
+const checkPer = async resourceId => {
+  if (!window.DataEaseBi || !resourceId) {
+    return true
+  }
+  const request = { busiFlag: 'dashboard' }
+  await interactiveStore.setInteractive(request)
+  return check(wsCache.get('panel-weight'), resourceId, 4)
+}
 // 全局监听按键事件
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('storage', eventCheck)
-  initDataset()
   const { resourceId, opt, pid, createType } = window.DataEaseBi || router.currentRoute.value.query
+  const checkResult = await checkPer(resourceId)
+  if (!checkResult) {
+    return
+  }
+  initDataset()
   state.sourcePid = pid
   if (resourceId) {
     dataInitState.value = false
-    initCanvasData(resourceId, 'dashboard', function () {
+    const busiFlg = opt === 'copy' ? 'dashboard-copy' : 'dashboard'
+    initCanvasData(resourceId, busiFlg, function () {
       dataInitState.value = true
       if (dvInfo.value && opt === 'copy') {
         dvInfo.value.dataState = 'prepare'
@@ -80,8 +95,17 @@ onMounted(() => {
     })
   } else if (opt && opt === 'create') {
     dataInitState.value = false
+    let watermarkBaseInfo
+    try {
+      await watermarkFind().then(rsp => {
+        watermarkBaseInfo = rsp.data
+        watermarkBaseInfo.settingContent = JSON.parse(watermarkBaseInfo.settingContent)
+      })
+    } catch (e) {
+      console.error('can not find watermark info')
+    }
     nextTick(() => {
-      dvMainStore.createInit('dashboard', null, pid)
+      dvMainStore.createInit('dashboard', null, pid, watermarkBaseInfo)
       // 从模板新建
       if (createType === 'template') {
         const deTemplateDataStr = wsCache.get(`de-template-data`)

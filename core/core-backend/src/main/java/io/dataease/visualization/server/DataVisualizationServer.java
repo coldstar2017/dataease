@@ -10,14 +10,17 @@ import io.dataease.api.visualization.request.DataVisualizationBaseRequest;
 import io.dataease.api.visualization.request.VisualizationWorkbranchQueryRequest;
 import io.dataease.api.visualization.vo.DataVisualizationVO;
 import io.dataease.api.visualization.vo.VisualizationResourceVO;
+import io.dataease.api.visualization.vo.VisualizationWatermarkVO;
 import io.dataease.chart.dao.auto.entity.CoreChartView;
 import io.dataease.chart.manage.ChartDataManage;
 import io.dataease.chart.manage.ChartViewManege;
 import io.dataease.commons.constants.DataVisualizationConstants;
 import io.dataease.commons.constants.OptConstants;
 import io.dataease.constant.CommonConstants;
+import io.dataease.constant.LogOT;
 import io.dataease.exception.DEException;
 import io.dataease.license.config.XpackInteract;
+import io.dataease.log.DeLog;
 import io.dataease.model.BusiNodeRequest;
 import io.dataease.model.BusiNodeVO;
 import io.dataease.operation.manage.CoreOptRecentManage;
@@ -31,7 +34,9 @@ import io.dataease.utils.BeanUtils;
 import io.dataease.utils.IDUtils;
 import io.dataease.utils.JsonUtil;
 import io.dataease.visualization.dao.auto.entity.DataVisualizationInfo;
+import io.dataease.visualization.dao.auto.entity.VisualizationWatermark;
 import io.dataease.visualization.dao.auto.mapper.DataVisualizationInfoMapper;
+import io.dataease.visualization.dao.auto.mapper.VisualizationWatermarkMapper;
 import io.dataease.visualization.dao.ext.mapper.ExtDataVisualizationMapper;
 import io.dataease.visualization.manage.CoreVisualizationManage;
 import jakarta.annotation.Resource;
@@ -83,6 +88,20 @@ public class DataVisualizationServer implements DataVisualizationApi {
     @Resource
     private CoreOptRecentManage coreOptRecentManage;
 
+    @Resource
+    private VisualizationWatermarkMapper watermarkMapper;
+
+    @Override
+    public DataVisualizationVO findCopyResource(Long dvId, String busiFlag) {
+        DataVisualizationVO result = findById(dvId, busiFlag);
+        if (result != null && result.getPid() == -1) {
+            return result;
+        } else {
+            return null;
+        }
+    }
+
+    @DeLog(id = "#p0", ot = LogOT.READ, stExp = "#p1")
     @Override
     @XpackInteract(value = "dataVisualizationServer", original = true)
     public DataVisualizationVO findById(Long dvId, String busiFlag) {
@@ -94,6 +113,10 @@ public class DataVisualizationServer implements DataVisualizationApi {
                 Map<Long, ChartViewDTO> viewInfo = chartViewDTOS.stream().collect(Collectors.toMap(ChartViewDTO::getId, chartView -> chartView));
                 result.setCanvasViewInfo(viewInfo);
             }
+            VisualizationWatermark watermark = watermarkMapper.selectById("system_default");
+            VisualizationWatermarkVO watermarkVO = new VisualizationWatermarkVO();
+            BeanUtils.copyBean(watermarkVO, watermark);
+            result.setWatermarkInfo(watermarkVO);
             return result;
         } else {
             DEException.throwException("资源不存在或已经被删除...");
@@ -101,18 +124,31 @@ public class DataVisualizationServer implements DataVisualizationApi {
         return null;
     }
 
+    @DeLog(id = "#p0.id", pid = "#p0.pid", ot = LogOT.CREATE, stExp = "#p0.type")
     @Override
     @Transactional
     public String saveCanvas(DataVisualizationBaseRequest request) {
         DataVisualizationInfo visualizationInfo = new DataVisualizationInfo();
         BeanUtils.copyBean(visualizationInfo, request);
         visualizationInfo.setNodeType(request.getNodeType() == null ? DataVisualizationConstants.NODE_TYPE.LEAF : request.getNodeType());
+        if (request.getSelfWatermarkStatus() != null && request.getSelfWatermarkStatus()) {
+            visualizationInfo.setSelfWatermarkStatus(1);
+        } else {
+            visualizationInfo.setSelfWatermarkStatus(0);
+        }
+        if (DataVisualizationConstants.RESOURCE_OPT_TYPE.COPY.equals(request.getOptType())) {
+            // 复制更新 新建权限插入
+            visualizationInfoMapper.deleteById(request.getId());
+            visualizationInfo.setNodeType(DataVisualizationConstants.NODE_TYPE.LEAF);
+        }
         Long newDvId = coreVisualizationManage.innerSave(visualizationInfo);
+        request.setId(newDvId);
         //保存视图信
         chartDataManage.saveChartViewFromVisualization(request.getComponentData(), newDvId, request.getCanvasViewInfo());
         return newDvId.toString();
     }
 
+    @DeLog(id = "#p0.id", ot = LogOT.MODIFY, stExp = "#p0.type")
     @Override
     @Transactional
     public void updateCanvas(DataVisualizationBaseRequest request) {
@@ -122,24 +158,24 @@ public class DataVisualizationServer implements DataVisualizationApi {
         }
         DataVisualizationInfo visualizationInfo = new DataVisualizationInfo();
         BeanUtils.copyBean(visualizationInfo, request);
-        if(DataVisualizationConstants.RESOURCE_OPT_TYPE.COPY.equals(request.getOptType())){
-            // 复制更新 新建权限插入
-            visualizationInfoMapper.deleteById(dvId);
-            visualizationInfo.setNodeType(DataVisualizationConstants.NODE_TYPE.LEAF);
-            coreVisualizationManage.innerSave(visualizationInfo);
-        }else{
-            // 检查当前节点的pid是否一致如果不一致 需要调用move 接口(预存 可能会出现pid =-1的情况)
-            if (request.getPid() != -1) {
-                QueryWrapper<DataVisualizationInfo> queryWrapper = new QueryWrapper<>();
-                queryWrapper.eq("pid", request.getPid());
-                queryWrapper.eq("id", dvId);
-                if (!visualizationInfoMapper.exists(queryWrapper)) {
-                    request.setMoveFromUpdate(true);
-                    coreVisualizationManage.move(request);
-                }
-            }
-            coreVisualizationManage.innerEdit(visualizationInfo);
+        if (request.getSelfWatermarkStatus() != null && request.getSelfWatermarkStatus()) {
+            visualizationInfo.setSelfWatermarkStatus(1);
+        } else {
+            visualizationInfo.setSelfWatermarkStatus(0);
         }
+
+        // 检查当前节点的pid是否一致如果不一致 需要调用move 接口(预存 可能会出现pid =-1的情况)
+        if (request.getPid() != -1) {
+            QueryWrapper<DataVisualizationInfo> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("pid", request.getPid());
+            queryWrapper.eq("id", dvId);
+            if (!visualizationInfoMapper.exists(queryWrapper)) {
+                request.setMoveFromUpdate(true);
+                coreVisualizationManage.move(request);
+            }
+        }
+        coreVisualizationManage.innerEdit(visualizationInfo);
+
         //保存视图信
         chartDataManage.saveChartViewFromVisualization(request.getComponentData(), dvId, request.getCanvasViewInfo());
     }
@@ -148,6 +184,7 @@ public class DataVisualizationServer implements DataVisualizationApi {
      * @Description: 更新基础信息；
      * 为什么单独接口：1.基础信息更新频繁数据且数据载量较小；2.防止出现更新过多信息的情况，造成视图的误删等操作
      */
+    @DeLog(id = "#p0.id", ot = LogOT.MODIFY, stExp = "#p0.type")
     @Override
     @Transactional
     public void updateBase(DataVisualizationBaseRequest request) {
@@ -161,6 +198,7 @@ public class DataVisualizationServer implements DataVisualizationApi {
     /**
      * @Description: 逻辑删除可视化信息；将delete_flag 置为0
      */
+    @DeLog(id = "#p0", ot = LogOT.DELETE, stExp = "#p1")
     @Transactional
     @Override
     public void deleteLogic(Long dvId, String busiFlag) {
@@ -173,6 +211,7 @@ public class DataVisualizationServer implements DataVisualizationApi {
         return coreVisualizationManage.tree(request);
     }
 
+    @DeLog(id = "#p0.id", pid = "#p0.pid", ot = LogOT.MODIFY, stExp = "#p0.type")
     @Transactional
     @Override
     public void move(DataVisualizationBaseRequest request) {
@@ -221,7 +260,7 @@ public class DataVisualizationServer implements DataVisualizationApi {
         extDataVisualizationMapper.copyLinkJumpInfo(copyId);
         extDataVisualizationMapper.copyLinkJumpTargetInfo(copyId);
         DataVisualizationInfo visualizationInfoTarget = new DataVisualizationInfo();
-        BeanUtils.copyBean(visualizationInfoTarget,newDv);
+        BeanUtils.copyBean(visualizationInfoTarget, newDv);
         visualizationInfoTarget.setPid(-1L);
         coreVisualizationManage.preInnerSave(visualizationInfoTarget);
         return String.valueOf(newDvId);
@@ -251,7 +290,11 @@ public class DataVisualizationServer implements DataVisualizationApi {
             name = visualizationTemplate.getName();
             dvType = visualizationTemplate.getDvType();
             // 模板市场记录
-            coreOptRecentManage.saveOpt(request.getTemplateId(), OptConstants.OPT_RESOURCE_TYPE.TEMPLATE,OptConstants.OPT_TYPE.NEW);
+            coreOptRecentManage.saveOpt(request.getTemplateId(), OptConstants.OPT_RESOURCE_TYPE.TEMPLATE, OptConstants.OPT_TYPE.NEW);
+            VisualizationTemplate visualizationTemplateUpdate = new VisualizationTemplate();
+            visualizationTemplateUpdate.setId(visualizationTemplate.getId());
+            visualizationTemplateUpdate.setUseCount(visualizationTemplate.getUseCount() == null ? 0 : visualizationTemplate.getUseCount() + 1);
+            templateMapper.updateById(visualizationTemplateUpdate);
         } else if (DataVisualizationConstants.NEW_PANEL_FROM.NEW_OUTER_TEMPLATE.equals(newFrom)) {
             templateStyle = request.getCanvasStyleData();
             templateData = request.getComponentData();
@@ -271,7 +314,7 @@ public class DataVisualizationServer implements DataVisualizationApi {
             name = templateFileInfo.getName();
             dvType = templateFileInfo.getDvType();
             // 模板市场记录
-            coreOptRecentManage.saveOpt(request.getResourceName(), OptConstants.OPT_RESOURCE_TYPE.TEMPLATE,OptConstants.OPT_TYPE.NEW);
+            coreOptRecentManage.saveOpt(request.getResourceName(), OptConstants.OPT_RESOURCE_TYPE.TEMPLATE, OptConstants.OPT_TYPE.NEW);
         }
         // 解析动态数据
         Map<String, String> dynamicDataMap = JsonUtil.parseObject(dynamicData, Map.class);
@@ -282,7 +325,7 @@ public class DataVisualizationServer implements DataVisualizationApi {
             String originViewId = entry.getKey();
             String originViewData = JsonUtil.toJSONString(entry.getValue()).toString();
             ChartViewDTO chartView = JsonUtil.parseObject(originViewData, ChartViewDTO.class);
-            if(chartView == null){
+            if (chartView == null) {
                 continue;
             }
             Long newViewId = IDUtils.snowID();

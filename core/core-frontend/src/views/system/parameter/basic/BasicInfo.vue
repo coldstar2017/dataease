@@ -22,7 +22,7 @@ const editor = ref()
 const infoTemplate = ref()
 const tooltips = [
   {
-    key: '请求超时时间',
+    key: 'setting_basic.frontTimeOut',
     val: '请求超时时间(单位：秒，注意：保存后刷新浏览器生效)'
   }
 ]

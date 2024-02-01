@@ -2,11 +2,13 @@
 import { dvMainStoreWithOut } from '@/store/modules/data-visualization/dvMain'
 import { storeToRefs } from 'pinia'
 import { useI18n } from '@/hooks/web/useI18n'
+import { useAppStoreWithOut } from '@/store/modules/app'
 import DvDetailInfo from '@/views/common/DvDetailInfo.vue'
 import { storeApi, storeStatusApi } from '@/api/visualization/dataVisualization'
-import { ref, watch } from 'vue'
-import { XpackComponent } from '@/components/plugin'
+import { ref, watch, computed } from 'vue'
+import ShareVisualHead from '@/views/share/share/ShareVisualHead.vue'
 const dvMainStore = dvMainStoreWithOut()
+const appStore = useAppStoreWithOut()
 const { dvInfo } = storeToRefs(dvMainStore)
 const emit = defineEmits(['reload', 'download', 'downloadAsAppTemplate'])
 const { t } = useI18n()
@@ -16,6 +18,7 @@ const preview = () => {
   const url = '#/preview?dvId=' + dvInfo.value.id
   window.open(url, '_blank')
 }
+const isDataEaseBi = computed(() => appStore.getIsDataEaseBi)
 
 const reload = () => {
   emit('reload', dvInfo.value.id)
@@ -76,7 +79,7 @@ watch(
     </el-tooltip>
     <el-divider style="margin: 0 16px 0 7px" direction="vertical" />
     <div class="create-area flex-align-center">
-      <span>创建人:{{ dvInfo.creatorName }}</span>
+      <span style="line-height: 22px">创建人:{{ dvInfo.creatorName }}</span>
       <el-popover show-arrow :offset="8" placement="bottom" width="400" trigger="hover">
         <template #reference>
           <el-icon class="info-tips"><Icon name="dv-info"></Icon></el-icon>
@@ -85,19 +88,23 @@ watch(
       </el-popover>
     </div>
     <div class="canvas-opt-button">
-      <el-button @click="preview()">
+      <el-button v-if="!isDataEaseBi" @click="preview()">
         <template #icon>
           <icon name="icon_pc_outlined"></icon>
         </template>
         预览</el-button
       >
-      <XpackComponent
-        jsname="L2NvbXBvbmVudC9zaGFyZS9TaGFyZVZpc3VhbEhlYWQ="
+      <ShareVisualHead
         :resource-id="dvInfo.id"
         :weight="dvInfo.weight"
         :resource-type="dvInfo.type"
       />
-      <el-button class="custom-button" v-if="dvInfo.weight > 6" type="primary" @click="dvEdit()">
+      <el-button
+        class="custom-button"
+        v-if="dvInfo.weight > 6 && !isDataEaseBi"
+        type="primary"
+        @click="dvEdit()"
+      >
         <template #icon>
           <icon name="icon_edit_outlined"></icon>
         </template>

@@ -5,7 +5,12 @@ import componentList, {
 } from '@/custom-component/component-list'
 import eventBus from '@/utils/eventBus'
 import { dvMainStoreWithOut } from '@/store/modules/data-visualization/dvMain'
-import { findById, saveCanvas, updateCanvas } from '@/api/visualization/dataVisualization'
+import {
+  findById,
+  findCopyResource,
+  saveCanvas,
+  updateCanvas
+} from '@/api/visualization/dataVisualization'
 import { storeToRefs } from 'pinia'
 import { getPanelAllLinkageInfo } from '@/api/visualization/linkage'
 import { queryVisualizationJumpInfo } from '@/api/visualization/linkJump'
@@ -78,8 +83,16 @@ export function commonHandleDragEnd(e, dvModel) {
 }
 
 export function initCanvasDataPrepare(dvId, busiFlag, callBack) {
-  findById(dvId, busiFlag).then(res => {
+  const copyFlag = busiFlag != null && busiFlag.includes('-copy')
+  const busiFlagCustom = copyFlag ? busiFlag.split('-')[0] : busiFlag
+  const method = copyFlag ? findCopyResource : findById
+  method(dvId, busiFlagCustom).then(res => {
     const canvasInfo = res.data
+    const watermarkInfo = {
+      ...canvasInfo.watermarkInfo,
+      settingContent: JSON.parse(canvasInfo.watermarkInfo.settingContent)
+    }
+
     const dvInfo = {
       id: canvasInfo.id,
       name: canvasInfo.name,
@@ -90,8 +103,10 @@ export function initCanvasDataPrepare(dvId, busiFlag, callBack) {
       creatorName: canvasInfo.creatorName,
       updateName: canvasInfo.updateName,
       createTime: canvasInfo.createTime,
-      updateTime: canvasInfo.updateTime
+      updateTime: canvasInfo.updateTime,
+      watermarkInfo: watermarkInfo
     }
+
     const canvasDataResult = JSON.parse(canvasInfo.componentData)
     const canvasStyleResult = JSON.parse(canvasInfo.canvasStyleData)
     const canvasViewInfoPreview = canvasInfo.canvasViewInfo
@@ -141,14 +156,8 @@ export function canvasSave(callBack) {
     if (item.component === 'UserView') {
       item.linkageFilters = []
     } else if (item.component === 'Group') {
-      const groupStyle = item.style
       item.propValue.forEach(groupItem => {
         groupItem.linkageFilters = []
-        // 计算groupStyle
-        groupItem.groupStyle.left = groupItem.style.left / groupStyle.width
-        groupItem.groupStyle.top = groupItem.style.top / groupStyle.height
-        groupItem.groupStyle.width = groupItem.style.width / groupStyle.width
-        groupItem.groupStyle.height = groupItem.style.height / groupStyle.height
       })
     } else if (item.component === 'DeTabs') {
       item.propValue.forEach(tabItem => {
@@ -162,14 +171,13 @@ export function canvasSave(callBack) {
     canvasStyleData: JSON.stringify(canvasStyleData.value),
     componentData: JSON.stringify(componentDataToSave),
     canvasViewInfo: canvasViewInfo.value,
-    ...dvInfo.value
+    ...dvInfo.value,
+    watermarkInfo: null
   }
 
-  const method = dvInfo.value.id ? updateCanvas : saveCanvas
+  const method = dvInfo.value.id && dvInfo.value.optType !== 'copy' ? updateCanvas : saveCanvas
   method(canvasInfo).then(res => {
-    if (res && res.data) {
-      dvMainStore.updateDvInfoId(res.data)
-    }
+    dvMainStore.updateDvInfoId(res.data)
     snapshotStore.resetStyleChangeTimes()
     callBack(res)
   })
